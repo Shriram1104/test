@@ -1,0 +1,24 @@
+steps:
+- name: 'hashicorp/terraform:1.12.2'
+  dir: '${_WORKING_DIR_}'
+  args: ['init', '--reconfigure', '--backend-config=${_BKEND_CONFIG_}']  
+- name: 'hashicorp/terraform:1.12.2'
+  dir: '${_WORKING_DIR_}'
+  args: ['plan', '-destroy', '-out', 'out.destroy.plan', '-var-file', '${_TF_VARS_PATH_}']
+- name: 'hashicorp/terraform:1.12.2'
+  dir: '${_WORKING_DIR_}'
+  args: ['apply', 'out.destroy.plan']
+tags: ['cloud-builders-community']
+serviceAccount: "projects/${_PROJECT_ID_}/serviceAccounts/${_PROJECT_NAME_}-sa@${_PROJECT_ID_}.iam.gserviceaccount.com"
+logsBucket: "gs://${_LOG_BUCKET_}"
+substitutions:
+  _PROJECT_ID_: ''
+  _PROJECT_NAME_: ''
+  _WORKING_DIR_: ''
+  _TF_VARS_PATH_: ''
+  _LOG_BUCKET_: ''
+  _RESOURCE_NAME_: ''
+  _BKEND_CONFIG_: 'prefix=terraform/state/${_WORKING_DIR_}/${_RESOURCE_NAME_}'
+options:
+    dynamicSubstitutions: true
+

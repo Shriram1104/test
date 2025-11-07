@@ -1,0 +1,22 @@
+{
+    "name": "rag_datastores_app",
+    "description": "An app for managing RAG Datastore",
+    "version": "1.0.0",
+    "private": true,
+    "license": "Apache-2.0",
+    "author": "Monojit Datta",
+    "scripts": {
+        "install": "npm install --unsafe-perm --save-dev express jshint dotenv axios google-auth-library",
+        "start": "node rag-datastores.js"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "devDependencies": {
+        "axios": "^1.12.2",
+        "dotenv": "^17.2.3",
+        "express": "^5.1.0",
+        "google-auth-library": "^10.4.0",
+        "jshint": "^2.13.6"
+    }
+}

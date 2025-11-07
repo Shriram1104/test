@@ -1,0 +1,289 @@
+BASEFOLDERPATH=<Root Folder path>
+HELPERSRPATH=$BASEFOLDERPATH/misc
+DISTRIBUTION_PATH=$BASEFOLDERPATH/distribution
+PROJECT_ID=<PROJECT_ID>
+OWNER=<User id of the user runnng teh below commands>
+GSA_DISPLAY_NAME=<Display name of the Google Service Account>>
+GSA=$GSA_DISPLAY_NAME@$PROJECT_ID.iam.gserviceaccount.com
+REGION=<REGION of your choice>
+AR_REPO=<Name of the Artifact Registry of your choice>
+CERTIFICATE_NAME=<Name of the GCP managed SSL Certificate>
+IP_ADDRESS_NAME=<Reserved Global IP Address to be mapped to he Load Balancer>
+DOMAIN_NAME=<DNS to be mapped to the SSL Certificate> (e.g. hqd.<dns>.com)
+DNS_ZONE=<Cloud DNS Zone managed wihin the GCP console> (This is not needed if managed outside of GCP)
+RAG_SCHEMES_HOST_NAME=<Host name for the rag-chemes backend> (e.g. rag-schemes.<dns>.com)
+SCHEMES_AGENT_HOST_NAME=<Host name for the schemes-agent backend> (e.g. schemes-agent.<dns>.com)
+
+
+gcloud auth login
+gcloud auth list
+gcloud config set account $OWNER
+
+#Enable Services
+====================
+gcloud services enable cloudresourcemanager.googleapis.com
+gcloud services enable compute.googleapis.com
+gcloud services enable container.googleapis.com
+gcloud services enable storage.googleapis.com
+gcloud services enable artifactregistry.googleapis.com
+gcloud services enable run.googleapis.com
+gcloud services enable aiplatform.googleapis.com
+gcloud services enable translate.googleapis.com
+gcloud services enable texttospeech.googleapis.com
+gcloud services enable vision.googleapis.com
+gcloud services enable apigee.googleapis.com
+gcloud services enable servicenetworking.googleapis.com
+gcloud services enable cloudkms.googleapis.com
+gcloud services enable mesh.googleapis.com
+gcloud services enable certificatemanager.googleapis.com
+gcloud services enable cloudbuild.googleapis.com
+gcloud services enable sqladmin.googleapis.com
+gcloud services enable redis.googleapis.com
+gcloud services enable secretmanager.googleapis.com
+
+gcloud config set project $PROJECT_ID
+#gcloud auth application-default login
+
+gcloud config set compute/region $REGION
+gcloud config set compute/zone $REGION-a
+
+#Permissions
+====================
+gcloud iam service-accounts list
+gcloud iam service-accounts create $GSA_DISPLAY_NAME --display-name=$GSA_DISPLAY_NAME --description="GSA for Haqdarshak Schemes Agent"
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$GSA --role=roles/owner
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$GSA --role=roles/iam.serviceAccountUser
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$GSA --role=roles/iam.serviceAccountTokenCreator
+gcloud projects add-iam-policy-binding $PROJECT_ID --member=serviceAccount:$GSA --role=roles/run.invoker
+
+gcloud iam service-accounts keys create $HELPERSRPATH/$GSA_DISPLAY_NAME.json --iam-account=$GSA
+gcloud auth activate-service-account $GSA --key-file=$HELPERSRPATH/$GSA_DISPLAY_NAME.json
+#gcloud config set account $GSA
+gcloud auth list
+
+gcloud config set project $PROJECT_ID
+gcloud config set compute/region $REGION
+gcloud config set compute/zone $REGION-a
+
+Storage Buckets
+=====================
+#gcloud storage buckets create gs://$PROJECT_ID-terra-stg --location=$REGION
+
+# Artifact Registry
+======================
+gcloud artifacts repositories create $AR_REPO --repository-format=docker --location=$REGION
+gcloud artifacts repositories list
+#gcloud artifacts repositories delete $REPOSITORY_NAME --location=$REGION
+
+## Build & Deploy
+===============================================================================================
+# Utilities - Websock Steam Server
+==========================================================================
+cd $BASEFOLDERPATH/src/utilities/websock-streamer/server
+PROJECT_NAME=$PROJECT_ID
+REPO_NAME=$AR_REPO
+PACKAGE_NAME=schemes-streamer-serverlib
+PACKAGE_VERSION=v1.0
+
+gcloud builds submit --config="$BASEFOLDERPATH/distribution/builds/app-deploy/app-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,_REGION_=$REGION,\
+_REPO_NAME_=$REPO_NAME,_PACKAGE_NAME_=$PACKAGE_NAME,_PACKAGE_VERSION_=$PACKAGE_VERSION,\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg
+
+cd $BASEFOLDERPATH/distribution
+WORKING_DIR=cloud-run
+RESOURCE_NAME=schemes-streamer-serverlib
+
+gcloud builds submit --config="./builds/cloud-run/run-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/schemes-streamer-server-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+
+#gcloud builds submit --config="./builds/cloud-run/run-destroy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/schemes-streamer-server-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+==========================================================================
+# RAG Pipelines - Datastores
+==========================================================================
+cd $BASEFOLDERPATH/src/rag/datastores
+PROJECT_NAME=$PROJECT_ID
+REPO_NAME=$AR_REPO
+PACKAGE_NAME=rag-datastoreslib
+PACKAGE_VERSION=v1.0
+
+gcloud builds submit --config="$BASEFOLDERPATH/distribution/builds/app-deploy/app-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,_REGION_=$REGION,\
+_REPO_NAME_=$REPO_NAME,_PACKAGE_NAME_=$PACKAGE_NAME,_PACKAGE_VERSION_=$PACKAGE_VERSION,\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg
+
+cd $BASEFOLDERPATH/distribution
+WORKING_DIR=cloud-run
+RESOURCE_NAME=rag-datastoreslib
+
+gcloud builds submit --config="./builds/cloud-run/run-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/rag-datastores-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+
+#gcloud builds submit --config="./builds/cloud-run/run-destroy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/rag-datastores-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+==========================================================================
+# RAG Pipelines - Schemes
+==========================================================================
+cd $BASEFOLDERPATH/src/rag/schemes
+PROJECT_NAME=$PROJECT_ID
+REPO_NAME=$AR_REPO
+PACKAGE_NAME=rag-schemeslib
+PACKAGE_VERSION=v1.0
+
+gcloud builds submit --config="$BASEFOLDERPATH/distribution/builds/app-deploy/app-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,_REGION_=$REGION,\
+_REPO_NAME_=$REPO_NAME,_PACKAGE_NAME_=$PACKAGE_NAME,_PACKAGE_VERSION_=$PACKAGE_VERSION,\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg
+
+
+
+gcloud builds submit --config="./builds/cloud-run/run-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/rag-schemes-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+
+#gcloud builds submit --config="./builds/cloud-run/run-destroy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/rag-schemes-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+==========================================================================
+# Scheme Agent
+=====================================
+cd $BASEFOLDERPATH/src/agent/search
+PROJECT_NAME=$PROJECT_ID
+REPO_NAME=$AR_REPO
+PACKAGE_NAME=schemes-search-agent
+PACKAGE_VERSION=v1.0
+
+gcloud builds submit --config="$BASEFOLDERPATH/distribution/builds/app-deploy/app-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,_REGION_=$REGION,\
+_REPO_NAME_=$REPO_NAME,_PACKAGE_NAME_=$PACKAGE_NAME,_PACKAGE_VERSION_=$PACKAGE_VERSION,\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg
+
+cd $BASEFOLDERPATH/distribution
+WORKING_DIR=cloud-run
+RESOURCE_NAME=schemes-search-agent
+
+gcloud builds submit --config="./builds/cloud-run/run-deploy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/schemes-search-agent-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+
+#gcloud builds submit --config="./builds/cloud-run/run-destroy.yaml" \
+--project=$PROJECT_ID --substitutions=_PROJECT_ID_=$PROJECT_ID,_PROJECT_NAME_=$PROJECT_NAME,\
+_WORKING_DIR_="$WORKING_DIR",_TF_VARS_PATH_="./values/schemes-search-agent-values.tfvars",\
+_LOG_BUCKET_=$PROJECT_ID-terra-stg,_RESOURCE_NAME_=$RESOURCE_NAME
+======================================================================================================
+## Setup Global External Load Balancer
+======================================================================================================
+# Reserve Static IP Address
+=============================
+gcloud compute addresses create $IP_ADDRESS_NAME --ip-version=IPV4 --global
+gcloud compute addresses describe $IP_ADDRESS_NAME --format="get(address)" --global
+
+#gcloud compute addresses delete $IP_ADDRESS_NAME --global
+
+
+# Add DNS Records
+(This is needed only if DNS Zone is managed from within GCP Console.
+Otherwise it should be done manually with the respective DNS provider)
+===============================================================================================
+GLB_LB_IP=$(gcloud compute addresses describe $IP_ADDRESS_NAME --format="get(address)" --global)
+gcloud dns record-sets create $DOMAIN_NAME --rrdatas=$GLB_LB_IP --type=A --ttl=60 --zone=$DNS_ZONE
+
+#gcloud dns record-sets delete $DOMAIN_NAME --type=A --zone=$DNS_ZONE
+
+
+# SSL Certificate
+===================
+gcloud compute ssl-certificates create $CERTIFICATE_NAME --domains=$DOMAIN_NAME --global
+gcloud compute ssl-certificates list --global
+
+#gcloud compute ssl-certificates delete $CERTIFICATE_NAME
+
+# Serverless Network Endpoint Group (NEG)
+============================================
+gcloud compute network-endpoint-groups create schemes-streamer-server-neg --region=$REGION \
+--network-endpoint-type=serverless --cloud-run-service=schemes-streamer-serverlib
+
+gcloud compute network-endpoint-groups create rag-datastores-neg --region=$REGION \
+--network-endpoint-type=serverless --cloud-run-service=rag-datastoreslib
+
+gcloud compute network-endpoint-groups create rag-schemes-neg --region=$REGION \
+--network-endpoint-type=serverless --cloud-run-service=rag-schemeslib
+
+gcloud compute network-endpoint-groups create schemes-search-agent-neg --region=$REGION \
+--network-endpoint-type=serverless --cloud-run-service=schemes-search-agent
+
+#gcloud compute network-endpoint-groups delete schemes-streamer-server-neg --region=$REGION
+#gcloud compute network-endpoint-groups delete rag-datastores-neg --region=$REGION
+#gcloud compute network-endpoint-groups delete rag-schemes-neg --region=$REGION
+#gcloud compute network-endpoint-groups delete schemes-search-agent-neg --region=$REGION
+
+# Backend Service
+====================
+gcloud compute backend-services create schemes-streamer-server-backend --load-balancing-scheme=EXTERNAL_MANAGED \
+--protocol=HTTP --global
+gcloud compute backend-services add-backend schemes-streamer-server-backend --network-endpoint-group=schemes-streamer-server-neg \
+--network-endpoint-group-region=$REGION --global
+
+gcloud compute backend-services create rag-datastores-backend --load-balancing-scheme=EXTERNAL_MANAGED \
+--protocol=HTTP --global
+gcloud compute backend-services add-backend rag-datastores-backend --network-endpoint-group=rag-datastores-neg \
+--network-endpoint-group-region=$REGION --global
+
+gcloud compute backend-services create rag-schemes-backend --load-balancing-scheme=EXTERNAL_MANAGED \
+--protocol=HTTP --global
+gcloud compute backend-services add-backend rag-schemes-backend --network-endpoint-group=rag-schemes-neg \
+--network-endpoint-group-region=$REGION --global
+
+gcloud compute backend-services create schemes-search-agent-backend --load-balancing-scheme=EXTERNAL_MANAGED \
+--protocol=HTTP --global
+gcloud compute backend-services add-backend schemes-search-agent-backend --network-endpoint-group=schemes-search-agent-neg \
+--network-endpoint-group-region=$REGION --global
+
+#gcloud compute backend-services delete schemes-streamer-server-backend --global
+#gcloud compute backend-services delete rag-datastores-backend --global
+#gcloud compute backend-services delete rag-schemes-backend --global
+#gcloud compute backend-services delete schemes-search-agent-backend --global
+
+
+# URL Map
+===========
+gcloud compute url-maps create schemes-url-map --default-service=schemes-search-agent-backend --global
+
+gcloud compute url-maps add-path-matcher schemes-url-map --path-matcher-name=schemes-path-matcher \
+--default-service=schemes-search-agent-backend \
+--path-rules="/stream/*=schemes-streamer-server-backend,/socket.io/*=schemes-streamer-server-backend,/datastores/*=rag-datastores-backend,/schemes/*=rag-schemes-backend,/agent/*=schemes-search-agent-backend" \
+--new-hosts=$DOMAIN_NAME --global
+
+#gcloud compute url-maps remove-path-matcher schemes-url-map --path-matcher-name=schemes-path-matcher --global
+#gcloud compute url-maps delete schemes-url-map --global
+
+
+# Target Https Proxy
+=======================
+gcloud compute target-https-proxies create schemes-https-proxy --url-map=schemes-url-map \
+--ssl-certificates=$CERTIFICATE_NAME --global
+
+#gcloud compute target-https-proxies delete schemes-https-proxy --global
+
+# Forwarding Rule
+=======================
+gcloud compute forwarding-rules create schemes-fwd-rule --load-balancing-scheme=EXTERNAL_MANAGED --network-tier=PREMIUM \
+--address=$IP_ADDRESS_NAME --target-https-proxy=schemes-https-proxy --ports=443 --global
+
+# gcloud compute forwarding-rules delete schemes-fwd-rule --global
+======================================================================================================
+
+
+

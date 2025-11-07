@@ -1,0 +1,23 @@
+{
+    "name": "streaming_client_app",
+    "description": "A Streaming Websocket Client App",
+    "version": "1.0.0",
+    "private": true,
+    "license": "Apache",
+    "author": "Monojit Datta",
+    "scripts": {
+        "test": "echo \"Error: no test specified\" && exit 1",
+        "install": "npm install --unsafe-perm --save-dev express jshint dotenv axios socket.io-client",
+        "start": "node streamClient.js"
+    },
+    "engines": {
+        "node": ">=16.0.0"
+    },
+    "devDependencies": {
+        "axios": "^1.12.2",
+        "dotenv": "^17.2.3",
+        "express": "^5.1.0",
+        "jshint": "^2.13.6",
+        "socket.io-client": "^4.8.1"
+    }
+}

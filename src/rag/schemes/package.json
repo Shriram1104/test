@@ -1,0 +1,15 @@
+{
+    "name": "rag_schemes_app",
+    "description": "An app for managing RAG for Schemes and Scheme Details",
+    "version": "1.0.0",
+    "private": true,
+    "license": "Apache-2.0",
+    "author": "Monojit Datta",
+    "scripts": {
+        "install": "npm install --unsafe-perm --save-dev express jshint dotenv axios async-sema",
+        "start": "node rag-schemes.js"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    }
+}

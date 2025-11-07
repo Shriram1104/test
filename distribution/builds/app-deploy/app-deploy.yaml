@@ -1,0 +1,20 @@
+steps:
+- name: 'docker'  
+  args: ['build', '-t', '${_REGION_}-docker.pkg.dev/${_PROJECT_ID_}/${_REPO_NAME_}/${_PACKAGE_NAME_}:${_PACKAGE_VERSION_}', '.']
+# - name: 'docker'
+#   args: ['push', '${_REGION_}-docker.pkg.dev/${_PROJECT_ID_}/${_REPO_NAME_}/${_PACKAGE_NAME_}:v1.0']
+images:
+- '${_REGION_}-docker.pkg.dev/${_PROJECT_ID_}/${_REPO_NAME_}/${_PACKAGE_NAME_}:${_PACKAGE_VERSION_}'
+tags: ['cloud-builders-community']
+serviceAccount: "projects/${_PROJECT_ID_}/serviceAccounts/${_PROJECT_NAME_}-sa@${_PROJECT_ID_}.iam.gserviceaccount.com"
+logsBucket: "gs://${_LOG_BUCKET_}"
+substitutions:
+  _PROJECT_ID_: ''
+  _PROJECT_NAME_: ''
+  _REGION_: ''
+  _REPO_NAME_: ''
+  _PACKAGE_NAME_: ''
+  _PACKAGE_VERSION_: ''
+  _LOG_BUCKET_: ''
+options:
+    dynamicSubstitutions: true
